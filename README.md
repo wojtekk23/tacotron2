@@ -6,6 +6,8 @@ Wavenet On Mel Spectrogram Predictions](https://arxiv.org/pdf/1712.05884.pdf).
 This implementation includes **distributed** and **automatic mixed precision** support
 and uses the [LJSpeech dataset](https://keithito.com/LJ-Speech-Dataset/).
 
+A multispeaker architecture is based on [Transfer Learning from Speaker Verification to Multispeaker Text-To-Speech Synthesis](https://arxiv.org/pdf/1806.04558.pdf)
+
 Distributed and Automatic Mixed Precision support relies on NVIDIA's [Apex] and [AMP].
 
 Visit our [website] for audio samples using our published [Tacotron 2] and
