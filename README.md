@@ -24,8 +24,7 @@ Visit our [website] for audio samples using our published [Tacotron 2] and
 2. Clone this repo: `git clone https://github.com/NVIDIA/tacotron2.git`
 3. CD into this repo: `cd tacotron2`
 4. Initialize submodule: `git submodule init; git submodule update`
-5. Update .wav paths: `sed -i -- 's,DUMMY,ljs_dataset_folder/wavs,g' filelists/*.txt`
-    - Alternatively, set `load_mel_from_disk=True` in `hparams.py` and update mel-spectrogram paths 
+5. Create a filelist for the VCTK dataset: `prepare_vctk.sh <VCTK-Corpus_path> <filelist_path>`
 6. Install [PyTorch 1.0]
 7. Install [Apex]
 8. Install python requirements or build docker image 
