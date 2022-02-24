@@ -13,10 +13,7 @@ do
     for file in $(ls $vctk_root/wav48/$folder/*.wav)
     do
         basefile=$(basename $file)
-        output_file=$vctk_downsampled/$folder/$basefile
-        ffmpeg -nostdin -i $file -ac 1 -ar 22050 -c pcm_s16le $output_file
-      
-        transcript=$(cat $vctk_root/txt/$folder/${basefile%*.wav}.txt)
-        echo "$output_file|$transcript" | tee -a $filelist_path
+        
+        echo "$file|$(cat $vctk_root/txt/$folder/${basefile%*.wav}.txt)" | tee -a $filelist_path
     done
 done
