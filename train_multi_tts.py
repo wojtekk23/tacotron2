@@ -3,8 +3,6 @@ import time
 import argparse
 import math
 from numpy import finfo
-from resemblyzer.audio import preprocess_wav, trim_long_silences
-from resemblyzer import VoiceEncoder
 
 import torch
 from torch._C import device
@@ -16,7 +14,7 @@ from torch.utils.data import DataLoader
 
 from model import Tacotron2
 from model_multi_tts import MultiSpeakerPostnet, MultiSpeakerTacotron2, MultiSpeakerDecoder
-from data_utils import TextMelLoader, TextMelCollate, TextMelAudioLoader
+from data_utils import TextMelEmbedLoader, TextMelEmbedCollate
 from loss_function import Tacotron2Loss
 from logger import Tacotron2Logger
 from hparams import create_hparams
@@ -45,9 +43,9 @@ def init_distributed(hparams, n_gpus, rank, group_name):
 
 def prepare_dataloaders(hparams):
     # Get data, data loaders and collate function ready
-    trainset = TextMelAudioLoader(hparams.training_files, hparams)
-    valset = TextMelAudioLoader(hparams.validation_files, hparams)
-    collate_fn = TextMelCollate(hparams.n_frames_per_step)
+    trainset = TextMelEmbedLoader(hparams.training_files, hparams)
+    valset = TextMelEmbedLoader(hparams.validation_files, hparams)
+    collate_fn = TextMelEmbedCollate(hparams.n_frames_per_step)
 
     if hparams.distributed_run:
         train_sampler = DistributedSampler(trainset)
@@ -126,7 +124,7 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, filepath):
 
 
 def validate(model, criterion, valset, iteration, batch_size, n_gpus,
-             collate_fn, logger, distributed_run, rank, speaker_embedding):
+             collate_fn, logger, distributed_run, rank):
     """Handles all the validation scoring and printing"""
     model.eval()
     with torch.no_grad():
@@ -137,8 +135,7 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
 
         val_loss = 0.0
         for i, batch in enumerate(val_loader):
-            x, y, audiopaths = model.parse_batch(batch)
-            embeds = get_embeds(audiopaths, speaker_embedding)
+            x, y, embeds = model.parse_batch(batch)
             y_pred = model(x, wavs=embeds)
             loss = criterion(y_pred, y)
             if distributed_run:
@@ -153,17 +150,6 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
         print("Validation loss {}: {:9f}  ".format(iteration, val_loss))
         logger.log_validation(val_loss, model, y, y_pred, iteration)
     return val_loss
-
-def get_embeds(audiopaths, speaker_embedding):
-    audios = [trim_long_silences(preprocess_wav(audiopath)) for audiopath in audiopaths]
-    min_audio_length = min([len(audio) for audio in audios])
-    audios = [audio[:min_audio_length] for audio in audios]
-    with torch.no_grad():
-        embeds = []
-        for wav in audios:
-            embeds.append(speaker_embedding.embed_utterance(wav))
-        embeds = torch.tensor(embeds).cuda()
-    return embeds
 
 def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
           rank, group_name, hparams):
@@ -248,7 +234,6 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     is_overflow = False
     print(model)
 
-    speaker_embedding = VoiceEncoder()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, threshold=1e-2)
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, hparams.epochs):
@@ -257,9 +242,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
             # print(batch)
             start = time.perf_counter()
             # bs = batch.size[0]
-            x, y, audiopaths = model.parse_batch(batch)
-
-            embeds = get_embeds(audiopaths, speaker_embedding)
+            x, y, embeds = model.parse_batch(batch)
 
             y_pred = model(x, wavs=embeds)
             loss = criterion(y_pred, y)
@@ -294,7 +277,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
             if not is_overflow and (iteration % hparams.iters_per_checkpoint == 0):
                 val_loss = validate(model, criterion, valset, iteration,
                          hparams.batch_size, n_gpus, collate_fn, logger,
-                         hparams.distributed_run, rank, speaker_embedding)
+                         hparams.distributed_run, rank)
                 if rank == 0:
                     checkpoint_path = os.path.join(
                         output_directory, "checkpoint_{}".format(iteration))

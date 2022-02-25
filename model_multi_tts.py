@@ -331,13 +331,8 @@ class MultiSpeakerTacotron2(nn.Module):
         self.postnet = Postnet(hparams)
 
     def parse_batch(self, batch):
-        if len(batch) == 5:
-            text_padded, input_lengths, mel_padded, gate_padded, \
-                output_lengths = batch
-            audios = None
-        else:
-            text_padded, input_lengths, mel_padded, gate_padded, \
-                output_lengths, audios = batch
+        text_padded, input_lengths, mel_padded, gate_padded, \
+            output_lengths, embeds = batch
         text_padded = to_gpu(text_padded).long()
         input_lengths = to_gpu(input_lengths).long()
         max_len = torch.max(input_lengths.data).item()
@@ -347,7 +342,7 @@ class MultiSpeakerTacotron2(nn.Module):
 
         return (
             (text_padded, input_lengths, mel_padded, max_len, output_lengths),
-            (mel_padded, gate_padded), audios)
+            (mel_padded, gate_padded), embeds)
 
     def parse_output(self, outputs, output_lengths=None):
         if self.mask_padding and output_lengths is not None:
