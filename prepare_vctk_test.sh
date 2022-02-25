@@ -18,3 +18,7 @@ do
         echo "$file|$(cat $vctk_root/txt/$folder/${basefile%*.wav}.txt | sed -e 's/^"//' -e 's/"$//')" | tee -a $filelist_path
     done
 done
+
+mv $filelist_path $filelist_path.tmp
+cat $filelist_path.tmp | grep -vE "^[^\|]+\|$" > $filelist_path
+rm -f $filelist_path.tmp

@@ -361,7 +361,6 @@ class MultiSpeakerTacotron2(nn.Module):
         text_lengths, output_lengths = text_lengths.data, output_lengths.data
 
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
-
         encoder_outputs = self.encoder(embedded_inputs, text_lengths)
 
         if wavs == None:
@@ -372,10 +371,6 @@ class MultiSpeakerTacotron2(nn.Module):
                 encoder_outputs, mels, memory_lengths=text_lengths, wavs=wavs)
 
         mel_outputs_postnet = self.postnet(mel_outputs)
-        # if wavs == None:
-        #     mel_outputs_postnet = self.postnet(mel_outputs)
-        # else:
-        #     mel_outputs_postnet = self.postnet(mel_outputs, wavs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet
 
         return self.parse_output(

@@ -135,6 +135,8 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
         val_loss = 0.0
         for i, batch in enumerate(val_loader):
             x, y, embeds = model.parse_batch(batch)
+            embeds = embeds.cuda()
+            
             y_pred = model(x, wavs=embeds)
             loss = criterion(y_pred, y)
             if distributed_run:

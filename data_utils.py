@@ -42,7 +42,7 @@ class TextMelLoader(torch.utils.data.Dataset):
             if sampling_rate != self.stft.sampling_rate:
                 raise ValueError("{} {} SR doesn't match target {} SR".format(
                     sampling_rate, self.stft.sampling_rate))
-            audio_norm = audio / self.max_wav_value
+            audio_norm = audio / audio.abs().max()
             audio_norm = audio_norm.unsqueeze(0)
             audio_norm = torch.autograd.Variable(audio_norm, requires_grad=False)
             melspec = self.stft.mel_spectrogram(audio_norm)
@@ -100,7 +100,7 @@ class TextMelEmbedLoader(torch.utils.data.Dataset):
             if sampling_rate != self.stft.sampling_rate:
                 raise ValueError("{} {} SR doesn't match target {} SR".format(
                     sampling_rate, self.stft.sampling_rate))
-            audio_norm = audio / self.max_wav_value
+            audio_norm = audio / audio.abs().max()
             audio_norm = audio_norm.unsqueeze(0)
             audio_norm = torch.autograd.Variable(audio_norm, requires_grad=False)
             melspec = self.stft.mel_spectrogram(audio_norm)
@@ -115,6 +115,7 @@ class TextMelEmbedLoader(torch.utils.data.Dataset):
 
     def get_text(self, text):
         text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners))
+        assert len(text_norm) > 0
         return text_norm
 
     def get_embed(self, filename):

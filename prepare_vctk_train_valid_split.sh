@@ -24,5 +24,5 @@ cat $filelist_path.tmp | shuf > $filelist_path
 rm -f $filelist_path.tmp
 
 # Train/validation split (80:20 not including the test data)
-head -n -8000 $filelist_path > ${filelist_path%*.txt}_train.txt
-tail -n  8000 $filelist_path > ${filelist_path%*.txt}_valid.txt
+head -n -8000 $filelist_path | grep -vE "^[^\|]+\|$" > ${filelist_path%*.txt}_train.txt
+tail -n  8000 $filelist_path | grep -vE "^[^\|]+\|$" > ${filelist_path%*.txt}_valid.txt
