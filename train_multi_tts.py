@@ -72,11 +72,8 @@ def prepare_directories_and_logger(output_directory, log_directory, rank):
     return logger
 
 
-def load_model(hparams, warm_start):
-    if warm_start:
-        model = Tacotron2(hparams).cuda()
-    else:
-        model = MultiSpeakerTacotron2(hparams).cuda()
+def load_model(hparams):
+    model = MultiSpeakerTacotron2(hparams).cuda()
     if hparams.fp16_run:
         model.decoder.attention_layer.score_mask_value = finfo('float16').min
 
@@ -90,14 +87,15 @@ def warm_start_model(checkpoint_path, model, ignore_layers):
     assert os.path.isfile(checkpoint_path)
     print("Warm starting model from checkpoint '{}'".format(checkpoint_path))
     checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
-    model_dict = checkpoint_dict['state_dict']
+    checkpoint_model_dict = checkpoint_dict['state_dict']
     if len(ignore_layers) > 0:
-        model_dict = {k: v for k, v in model_dict.items()
-                      if k not in ignore_layers}
+        model_dict = model.state_dict()
+        checkpoint_model_dict = {k: v for k, v in checkpoint_model_dict.items()
+                      if k not in ignore_layers and k in model_dict}
         dummy_dict = model.state_dict()
-        dummy_dict.update(model_dict)
-        model_dict = dummy_dict
-    model.load_state_dict(model_dict)
+        dummy_dict.update(checkpoint_model_dict)
+        checkpoint_model_dict = dummy_dict
+    model.load_state_dict(checkpoint_model_dict)
     return model
 
 
@@ -170,7 +168,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     torch.manual_seed(hparams.seed)
     torch.cuda.manual_seed(hparams.seed)
 
-    model = load_model(hparams, warm_start)
+    model = load_model(hparams)
     learning_rate = hparams.learning_rate
 
     if hparams.fp16_run:
@@ -200,20 +198,6 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
         if warm_start:
             model = warm_start_model(
                 checkpoint_path, model, hparams.ignore_layers)
-            multidecoder = MultiSpeakerDecoder(hparams).cuda()
-            prenet = model.decoder.prenet
-            attention_rnn = model.decoder.attention_rnn
-            attention_layer = model.decoder.attention_layer
-            decoder_rnn = model.decoder.decoder_rnn
-            linear_projection = model.decoder.linear_projection
-            gate_layer = model.decoder.gate_layer
-            model.decoder = multidecoder
-            model.decoder.prenet = prenet
-            model.decoder.attention_rnn = attention_rnn
-            model.decoder.attention_layer = attention_layer
-            model.decoder.decoder_rnn = decoder_rnn
-            model.decoder.linear_projection = linear_projection
-            model.decoder.gate_layer = gate_layer
         else:
             model.decoder = MultiSpeakerDecoder(hparams).cuda()
             model, optimizer, _learning_rate, iteration = load_checkpoint(
