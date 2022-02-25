@@ -119,9 +119,7 @@ class TextMelEmbedLoader(torch.utils.data.Dataset):
 
     def get_embed(self, filename):
         audio = trim_long_silences(preprocess_wav(filename))
-        with torch.no_grad():
-            return self.speaker_encoder(audio)
-
+        return self.speaker_encoder.embed_utterance(audio)
 
     def __getitem__(self, index):
         return self.get_mel_text_embed_tuple(self.audiopaths_and_text[index])
@@ -219,7 +217,7 @@ class TextMelEmbedCollate():
             output_lengths[i] = mel.size(1)
 
         # Get speaker embeddings
-        embeds = [x[-1] for x in batch]
+        embeds = torch.FloatTensor([x[-1] for x in batch])
 
         return text_padded, input_lengths, mel_padded, gate_padded, \
             output_lengths, embeds

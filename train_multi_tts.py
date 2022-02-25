@@ -92,6 +92,7 @@ def warm_start_model(checkpoint_path, model, ignore_layers):
         model_dict = model.state_dict()
         checkpoint_model_dict = {k: v for k, v in checkpoint_model_dict.items()
                       if k not in ignore_layers and k in model_dict}
+        print(f'Checkpoint dictionary length: {len(checkpoint_model_dict)}')
         dummy_dict = model.state_dict()
         dummy_dict.update(checkpoint_model_dict)
         checkpoint_model_dict = dummy_dict
@@ -227,6 +228,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
             start = time.perf_counter()
             # bs = batch.size[0]
             x, y, embeds = model.parse_batch(batch)
+            embeds = embeds.cuda()
 
             y_pred = model(x, wavs=embeds)
             loss = criterion(y_pred, y)
@@ -295,6 +297,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     hparams = create_hparams(args.hparams, True)
 
+    torch.multiprocessing.set_start_method('spawn')# good solution !!!!
     torch.backends.cudnn.enabled = hparams.cudnn_enabled
     torch.backends.cudnn.benchmark = hparams.cudnn_benchmark
 
