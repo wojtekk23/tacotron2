@@ -248,9 +248,9 @@ class MultiSpeakerDecoder(nn.Module):
         gate_outputs: gate outputs from the decoder
         alignments: sequence of attention weights from the decoder
         """
-        print("MultiDecoder", memory.shape)
-        speaker_projected = self.speaker_projection(wavs).unsqueeze(1)
-        print("wavs", speaker_projected.shape)
+        #print("MultiDecoder", memory.shape)
+        #speaker_projected = self.speaker_projection(wavs).unsqueeze(1)
+        #print("wavs", speaker_projected.shape)
 
         decoder_input = self.get_go_frame(memory).unsqueeze(0)
         decoder_inputs = self.parse_decoder_inputs(decoder_inputs)
@@ -258,11 +258,11 @@ class MultiSpeakerDecoder(nn.Module):
         decoder_inputs = self.prenet(decoder_inputs)
 
         self.initialize_decoder_states(
-            memory+speaker_projected, mask=~get_mask_from_lengths(memory_lengths))
+            memory, mask=~get_mask_from_lengths(memory_lengths))
 
         mel_outputs, gate_outputs, alignments = [], [], []
         while len(mel_outputs) < decoder_inputs.size(0) - 1:
-            decoder_input = decoder_inputs[len(mel_outputs)]
+            decoder_input = decoder_inputs[len(mel_outputs)] + wavs
             mel_output, gate_output, attention_weights = self.decode(
                 decoder_input)
             mel_outputs += [mel_output.squeeze(1)]
@@ -285,15 +285,15 @@ class MultiSpeakerDecoder(nn.Module):
         gate_outputs: gate outputs from the decoder
         alignments: sequence of attention weights from the decoder
         """
-        speaker_projected = self.speaker_projection(wavs).unsqueeze(1)
+        #speaker_projected = self.speaker_projection(wavs).unsqueeze(1)
 
         decoder_input = self.get_go_frame(memory)
 
-        self.initialize_decoder_states(memory+speaker_projected, mask=None)
+        self.initialize_decoder_states(memory, mask=None)
 
         mel_outputs, gate_outputs, alignments = [], [], []
         while True:
-            decoder_input = self.prenet(decoder_input)
+            decoder_input = self.prenet(decoder_input) + wavs
             mel_output, gate_output, alignment = self.decode(decoder_input)
 
             mel_outputs += [mel_output.squeeze(1)]
