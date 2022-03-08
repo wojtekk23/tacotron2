@@ -74,6 +74,7 @@ class TextMelEmbedLoader(torch.utils.data.Dataset):
     """
     def __init__(self, audiopaths_and_text, hparams):
         self.audiopaths_and_text = load_filepaths_and_text(audiopaths_and_text)
+        self.embeddings = {filename: path for filename, path in load_filepaths_and_text(hparams.embedding_files)}
         self.text_cleaners = hparams.text_cleaners
         self.max_wav_value = hparams.max_wav_value
         self.sampling_rate = hparams.sampling_rate
@@ -82,7 +83,8 @@ class TextMelEmbedLoader(torch.utils.data.Dataset):
             hparams.filter_length, hparams.hop_length, hparams.win_length,
             hparams.n_mel_channels, hparams.sampling_rate, hparams.mel_fmin,
             hparams.mel_fmax)
-        self.speaker_encoder = VoiceEncoder()
+        self.speaker_encoder = VoiceEncoder().cuda()
+        print("SPEAKER ENCODER: {}".format(self.speaker_encoder.device))
         random.seed(hparams.seed)
         random.shuffle(self.audiopaths_and_text)
 
@@ -119,6 +121,9 @@ class TextMelEmbedLoader(torch.utils.data.Dataset):
         return text_norm
 
     def get_embed(self, filename):
+        if filename in self.embeddings:
+            return torch.load(self.embeddings[filename])
+            
         audio = trim_long_silences(preprocess_wav(filename))
         return self.speaker_encoder.embed_utterance(audio)
 
@@ -218,7 +223,7 @@ class TextMelEmbedCollate():
             output_lengths[i] = mel.size(1)
 
         # Get speaker embeddings
-        embeds = torch.FloatTensor([x[-1] for x in batch])
+        embeds = torch.FloatTensor(np.array([x[-1] for x in batch]))
 
         return text_padded, input_lengths, mel_padded, gate_padded, \
             output_lengths, embeds

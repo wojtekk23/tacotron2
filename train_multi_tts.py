@@ -173,15 +173,6 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
     model = load_model(hparams)
     learning_rate = hparams.learning_rate
-
-    if hparams.fp16_run:
-        from apex import amp
-        model, optimizer = amp.initialize(
-            model, optimizer, opt_level='O2')
-
-    if hparams.distributed_run:
-        model = apply_gradient_allreduce(model)
-
     criterion = Tacotron2Loss()
 
     logger = prepare_directories_and_logger(
@@ -195,14 +186,17 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     model.cuda()
     optimizer = torch.optim.Adam([
         {"params": model.decoder.parameters()},
-        {"params": model.postnet.parameters()}
+        {"params": model.postnet.parameters()},
+        {"params": model.predecoder_projection.parameters()},
+        {"params": model.encoder.parameters(), "lr": learning_rate / 2}
     ], lr=learning_rate, weight_decay=hparams.weight_decay)
     if checkpoint_path is not None:
         if warm_start:
+            print("WARM START")
             model = warm_start_model(
                 checkpoint_path, model, hparams.ignore_layers)
         else:
-            model.decoder = MultiSpeakerDecoder(hparams).cuda()
+            #model.decoder = MultiSpeakerDecoder(hparams).cuda()
             model, optimizer, _learning_rate, iteration = load_checkpoint(
                 checkpoint_path, model, optimizer)
             if hparams.use_saved_learning_rate:
@@ -216,10 +210,21 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     # convs = model.postnet.convolutions
     # multipostnet.convolutions = convs
     # model.postnet = multipostnet
+    
+    if hparams.fp16_run:
+        from apex import amp
+        model, optimizer = amp.initialize(
+            model, optimizer, opt_level='O2')
+
+    if hparams.distributed_run:
+        model = apply_gradient_allreduce(model)
 
     model.train()
     is_overflow = False
     print(model)
+    
+    print(warm_start)
+    print(iteration)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, threshold=1e-2)
     # ================ MAIN TRAINNIG LOOP! ===================
