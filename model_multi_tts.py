@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 from layers import ConvNorm, LinearNorm
 from utils import to_gpu, get_mask_from_lengths
-from model import Prenet, Attention, Encoder, Postnet
+from model import Prenet, Attention, Encoder, Postnet, Decoder
 
 class MultiSpeakerPostnet(nn.Module):
     """MultiSpeakerPostnet
@@ -100,7 +100,7 @@ class MultiSpeakerDecoder(nn.Module):
             hparams.decoder_rnn_dim + hparams.encoder_embedding_dim, 1,
             bias=True, w_init_gain='sigmoid')
 
-        self.speaker_projection = LinearNorm(256, 512)
+        self.speaker_projection = LinearNorm(768, 512)
 
     def get_go_frame(self, memory):
         """ Gets all zeros frames to use as first decoder input
@@ -252,17 +252,28 @@ class MultiSpeakerDecoder(nn.Module):
         #speaker_projected = self.speaker_projection(wavs).unsqueeze(1)
         #print("wavs", speaker_projected.shape)
 
+        print("DECODER INPUTS: {}".format(decoder_inputs.shape))
         decoder_input = self.get_go_frame(memory).unsqueeze(0)
+        print("DECODER INPUT: {}".format(decoder_input.shape))
         decoder_inputs = self.parse_decoder_inputs(decoder_inputs)
+        print("DECODER INPUTS: {}".format(decoder_inputs.shape))
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0)
+        print("DECODER INPUTS: {}".format(decoder_inputs.shape))
         decoder_inputs = self.prenet(decoder_inputs)
+        print("MEMORY: {}".format(memory.shape))
+        print("DECODER INPUTS: {}".format(decoder_inputs.shape))
+        print("WAVS: {}".format(wavs.shape))
+        decoder_inputs = torch.cat((decoder_inputs, wavs), dim=0)
+        print("DECODER INPUTS: {}".format(decoder_inputs.shape))
+        decoder_inputs = self.speaker_projection(decoder_inputs)
+        print("DECODER INPUTS: {}".format(decoder_inputs.shape))
 
         self.initialize_decoder_states(
             memory, mask=~get_mask_from_lengths(memory_lengths))
 
         mel_outputs, gate_outputs, alignments = [], [], []
         while len(mel_outputs) < decoder_inputs.size(0) - 1:
-            decoder_input = decoder_inputs[len(mel_outputs)] + wavs
+            decoder_input = decoder_inputs[len(mel_outputs)]
             mel_output, gate_output, attention_weights = self.decode(
                 decoder_input)
             mel_outputs += [mel_output.squeeze(1)]
@@ -293,7 +304,9 @@ class MultiSpeakerDecoder(nn.Module):
 
         mel_outputs, gate_outputs, alignments = [], [], []
         while True:
-            decoder_input = self.prenet(decoder_input) + wavs
+            decoder_input = self.prenet(decoder_input)
+            decoder_input = torch.cat((decoder_input, wavs), dim=0)
+            decoder_input = self.speaker_projection(decoder_input)
             mel_output, gate_output, alignment = self.decode(decoder_input)
 
             mel_outputs += [mel_output.squeeze(1)]
@@ -326,9 +339,12 @@ class MultiSpeakerTacotron2(nn.Module):
         val = sqrt(3.0) * std  # uniform bounds for std
         self.embedding.weight.data.uniform_(-val, val)
         self.encoder = Encoder(hparams)
-        self.decoder = MultiSpeakerDecoder(hparams)
+        #self.decoder = MultiSpeakerDecoder(hparams)
+        self.decoder = Decoder(hparams)
         # TODO: zamień na MultiSpeakerPostnet
         self.postnet = Postnet(hparams)
+        
+        self.predecoder_projection = nn.Linear(768, 512)
 
     def parse_batch(self, batch):
         text_padded, input_lengths, mel_padded, gate_padded, \
@@ -359,16 +375,32 @@ class MultiSpeakerTacotron2(nn.Module):
     def forward(self, inputs, wavs=None):
         text_inputs, text_lengths, mels, max_len, output_lengths = inputs
         text_lengths, output_lengths = text_lengths.data, output_lengths.data
+        #print(text_lengths)
+        #print(output_lengths)
 
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
         encoder_outputs = self.encoder(embedded_inputs, text_lengths)
+        
+        # Add speaker embeddings to the memory
+        bs = encoder_outputs.size(0)
+        num_chars = encoder_outputs.size(1)
+        wavs_size = wavs.size(1)
+        
+        embeds = wavs.repeat_interleave(num_chars, dim=1)
+        embeds = embeds.reshape(bs, wavs_size, num_chars)
+        embeds = embeds.transpose(1, 2)
+        
+        encoder_outputs = torch.cat((encoder_outputs, embeds), 2)
+        encoder_outputs = self.predecoder_projection(encoder_outputs)
+        #print("EMBEDDED INPUTS: {}".format(embedded_inputs.shape))
+        #print("ENCODER OUTPUTS: {}".format(encoder_outputs.shape))
 
-        if wavs == None:
-            mel_outputs, gate_outputs, alignments = self.decoder(
-                encoder_outputs, mels, memory_lengths=text_lengths)
-        else:
-            mel_outputs, gate_outputs, alignments = self.decoder(
-                encoder_outputs, mels, memory_lengths=text_lengths, wavs=wavs)
+        #if wavs == None:
+        mel_outputs, gate_outputs, alignments = self.decoder(
+            encoder_outputs, mels, memory_lengths=text_lengths)
+        #else:
+            #mel_outputs, gate_outputs, alignments = self.decoder(
+                #encoder_outputs, mels, memory_lengths=text_lengths, wavs=wavs)
 
         mel_outputs_postnet = self.postnet(mel_outputs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet
@@ -380,8 +412,21 @@ class MultiSpeakerTacotron2(nn.Module):
     def inference(self, inputs, wavs=None):
         embedded_inputs = self.embedding(inputs).transpose(1, 2)
         encoder_outputs = self.encoder.inference(embedded_inputs)
+        
+        # Add speaker embeddings to the memory
+        bs = encoder_outputs.size(0)
+        num_chars = encoder_outputs.size(1)
+        wavs_size = wavs.size(1)
+        
+        embeds = wavs.repeat_interleave(num_chars, dim=1)
+        embeds = embeds.reshape(bs, wavs_size, num_chars)
+        embeds = embeds.transpose(1, 2)
+        
+        encoder_outputs = torch.cat((encoder_outputs, embeds), 2)
+        encoder_outputs = self.predecoder_projection(encoder_outputs)
+        
         mel_outputs, gate_outputs, alignments = self.decoder.inference(
-            encoder_outputs, wavs=wavs)
+            encoder_outputs)
 
         mel_outputs_postnet = self.postnet(mel_outputs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet
