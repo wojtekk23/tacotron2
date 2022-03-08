@@ -19,11 +19,11 @@ if __name__=="__main__":
     train_paths = load_filepaths_and_text(hparams.training_files)
     valid_paths = load_filepaths_and_text(hparams.validation_files)
     
-    #print("Training files:")
-    #for filename, _ in tqdm(train_paths):
-        #audio = trim_long_silences(preprocess_wav(filename))
-        #embed = speaker_encoder.embed_utterance(audio)
-        #torch.save(embed, os.path.join(args.output_directory, os.path.basename(filename).rsplit('.', 1)[0]))
+    print("Training files:")
+    for filename, _ in tqdm(train_paths):
+        audio = trim_long_silences(preprocess_wav(filename))
+        embed = speaker_encoder.embed_utterance(audio)
+        torch.save(embed, os.path.join(args.output_directory, os.path.basename(filename).rsplit('.', 1)[0]))
     
     print("Validation files:")
     for filename, _ in tqdm(valid_paths):
