@@ -47,7 +47,7 @@ def get_embeds(audiopaths, speaker_embedding):
         embeds = []
         for wav in audios:
             embeds.append(speaker_embedding.embed_utterance(wav))
-            embeds = torch.tensor(embeds).cuda()
+        embeds = torch.tensor(embeds).cuda()
     return embeds
 
 def check_line(line):
@@ -77,13 +77,13 @@ def main(args):
     checkpoint_path = args.checkpoint_path
     model = load_model(hparams)
     model.load_state_dict(torch.load(checkpoint_path)['state_dict'])
-    _ = model.cuda().eval().half()
-    # _ = model.cuda().eval()
+    #_ = model.cuda().eval().half()
+    model = model.cuda().eval()
 
     waveglow_path = args.waveglow_path
     waveglow = torch.load(waveglow_path)['model']
-    waveglow.cuda().eval().half()
-    # waveglow.cuda().eval()
+    #waveglow.cuda().eval().half()
+    waveglow.cuda().eval()
     for k in waveglow.convinv:
         k.float()
 
@@ -108,8 +108,14 @@ def main(args):
                             interpolation='none')
             fig.savefig(os.path.join(args.output_dir, 'data.png'))
 
-        embeds = get_embeds([args.embed], speaker_embedding)
-        embeds = embeds.cuda().half()
+        if args.utterance:
+            print('UTTERANCE')
+            embeds = get_embeds([args.utterance], speaker_embedding)
+        elif args.embed:
+            print('EMBED')
+            embeds = torch.tensor(torch.load(args.embed))
+            embeds = embeds.unsqueeze(0)
+        embeds = embeds.cuda()
         mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequence, wavs=embeds)
         if not args.file:
             plot_data((mel_outputs.float().data.cpu().numpy()[0],
@@ -209,7 +215,8 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--waveglow_path',
                         help='Path to waveglow state dict', type=str)
     parser.add_argument('-t', '--text', help='Text to synthesize', type=str)
-    parser.add_argument('-e', '--embed', help='Path to reference speaker audio', type=str)
+    parser.add_argument('-u', '--utterance', help='Path to reference speaker audio', type=str)
+    parser.add_argument('-e', '--embed', help='Path to reference speaker embedding', type=str)
     parser.add_argument('-f', '--file', help='File with lines to read', 
     type=str, default="")
     parser.add_argument('-o', "--output_dir", default="results/")

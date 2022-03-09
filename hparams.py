@@ -27,7 +27,8 @@ def create_hparams(hparams_string=None, verbose=False):
         load_mel_from_disk=False,
         training_files='filelists/vctk_filelist_train.txt',
         validation_files='filelists/vctk_filelist_valid.txt',
-        embedding_files='filelists/vctk_embeddings.txt',
+        #embedding_files='filelists/vctk_embeddings.txt',
+        embedding_files='filelists/vctk_speaker_embeds.txt',
         text_cleaners=['english_cleaners'],
 
         ################################
