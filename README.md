@@ -6,6 +6,8 @@ Wavenet On Mel Spectrogram Predictions](https://arxiv.org/pdf/1712.05884.pdf).
 This implementation includes **distributed** and **automatic mixed precision** support
 and uses the [LJSpeech dataset](https://keithito.com/LJ-Speech-Dataset/).
 
+A multispeaker architecture is based on [Transfer Learning from Speaker Verification to Multispeaker Text-To-Speech Synthesis](https://arxiv.org/pdf/1806.04558.pdf)
+
 Distributed and Automatic Mixed Precision support relies on NVIDIA's [Apex] and [AMP].
 
 Visit our [website] for audio samples using our published [Tacotron 2] and
@@ -22,8 +24,7 @@ Visit our [website] for audio samples using our published [Tacotron 2] and
 2. Clone this repo: `git clone https://github.com/NVIDIA/tacotron2.git`
 3. CD into this repo: `cd tacotron2`
 4. Initialize submodule: `git submodule init; git submodule update`
-5. Update .wav paths: `sed -i -- 's,DUMMY,ljs_dataset_folder/wavs,g' filelists/*.txt`
-    - Alternatively, set `load_mel_from_disk=True` in `hparams.py` and update mel-spectrogram paths 
+5. Create train/valid/test split for the VCTK dataset: `prepare_vctk_train_valid.sh <VCTK-Corpus_path> <filelist_path>` and `prepare_vctk_test.sh <VCTK-Corpus_path> <filelist_path>`
 6. Install [PyTorch 1.0]
 7. Install [Apex]
 8. Install python requirements or build docker image 
